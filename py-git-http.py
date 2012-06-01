@@ -1,67 +1,91 @@
-import subprocess
-import logging
+#!/usr/bin/env python
 
-import bottle
-from bottle import route, run, static_file, request, response
+import subprocess
+from logging import warning
+
+from tornado.ioloop import IOLoop
+from tornado.web import Application, RequestHandler
 
 base = '/tmp/repo'
 git = '/usr/local/bin/git'
-#git = '/usr/bin/git'
-
 pack_ops = {
     'git-upload-pack': 'upload-pack',
     'git-receive-pack': 'receive-pack',
 }
 
-bottle.debug(True)
+def pkt_flush():
+    return '0000'
 
-@route('/<repo>/<op:re:git-upload-pack|git-receive-pack>', method='POST')
-def service_call(repo=None, op=None):
-    indata = ''.join(request.body.readlines())
-    response.set_header('Pragma', 'no-cache')
-    response.set_header('Cache-Control', 'no-cache, max-age=0, must-revalidate')
+def mk_pkt_line(line):
+    return '{:04x}{}'.format(len(line), line)
 
-    proc = subprocess.Popen([git, pack_ops[op], '--stateless-rpc',
-        '%s/%s' % (base, repo)],
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-    proc.stdin.write(indata)
+class rpc_service(RequestHandler):
+    def post(self, repo, op):
+        warning('rpc_service')
 
-    return proc.stdout
+        indata = self.request.body
+        warning(indata)
 
-@route('/<repo>/objects/<obj_path:re:[0-9a-f]{2}/[0-9a-f]{38}$>', method='GET')
-def get_objects(repo=None, obj_path=None):
-    logging.warning('get_objects(%s, %s)' % (repo, obj_path))
-    logging.warning('get_objects(): %s/%s/objects/%s' % (base, repo, obj_path))
-    response.content_type = 'application/x-git-loose-object'
-    return static_file(obj_path, root='/%s/%s/objects' % (base, repo))
+        self.set_header('Content-Type', 'application/x-%s-result' % (op))
+        self.set_header('Pragma', 'no-cache')
+        self.set_header('Cache-Control', 'no-cache, max-age=0, must-revalidate')
 
-@route('/<repo>/info/refs', method='GET')
-def get_refs_info(repo=None):
-    response.content_type = 'application/x-%s-advertisement' % (
-        request.GET.get('service', 'git-unknown'))
-    ret = '''001e# service=%s\n0000''' % (
-        request.GET.get('service', 'git-unknown'),)
+        proc = subprocess.Popen(' '.join([git, pack_ops[op], '--stateless-rpc',
+            '%s/%s' % (base, repo), ' | /usr/bin/tee /tmp/g.out']),
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True)
+        proc.stdin.write(indata)
 
-    ret = '%s%s\n' % (ret, subprocess.check_output(['git',
-        pack_ops[request.GET.get('service', None)],
-        '--stateless-rpc', '--advertise-refs', '%s/%s' % (base, repo)]))
+        warning('Sending data:')
+        while True:
+            outdata = proc.stdout.read(8192)
+            if outdata == '':
+                warning('Done')
+                return
+            warning('---->%s' % (outdata))
+            self.write(outdata)
+            self.flush()
+#        self.write(bytes('0008NAK\n'))
 
-    logging.warning('get_refs_info(): %s' % (ret))
-    return ret
+class get_objects(RequestHandler):
+    def get(self):
+        warning('get_objects')
 
+class get_refs_info(RequestHandler):
+    def get(self, repo):
+        warning('get_refs_info: %s'% (repo))
+        warning(self.get_argument('service'))
+        self.set_header('Content-type', 'application/x-%s-advertisement' % (
+            self.get_argument('service')))
 
-@route('/<repo>/<fpath:re:^packs$>', method='GET')
-def get_pack_info(repo=None, fpath=None):
-    with file('/tmp/b.out', 'a') as f:
-        f.write('packs\n')
+        ret = mk_pkt_line('# service=%s\n%s' % (
+            self.get_argument('service'), pkt_flush()))
 
-@route('/<repo>/<fpath:re:HEAD>', method='GET')
-@route('/<repo>/<fpath:re:^objects/info/[^/]*$', method='GET')
-def text_file(repo=None, fpath=None):
-        response.content_type = 'text/plain'
-        return static_file(fpath, root='%s/%s' % (base, repo))
+        ret = '%s%s\n' % (ret, subprocess.check_output([git,
+            pack_ops[self.get_argument('service')],
+            '--stateless-rpc', '--advertise-refs', '%s/%s' % (base, repo)]))
 
+        self.write(ret)
 
+class get_pack_info(RequestHandler):
+    def get(self):
+        warning('get_pack_info')
 
+class text_file(RequestHandler):
+    def get(self, repo, path):
+        warning('text_file: %s'% (path))
+        self.set_header('Content-type', 'text/plain')
+        with open('%s/%s/%s' % (base, repo, path)) as f:
+            self.write(f.read())
 
-run(host='localhost', port=8080)
+application = (Application([
+    (r'/(.*?)/(git-upload-pack|git-receive-pack)', rpc_service),
+    (r'/(.*?)/objects/([0-9a-f]{2}/[0-9a-f]{38}$)', get_objects),
+    (r'/(.*?)/info/refs', get_refs_info),
+    (r'/(.*?)/packs', get_pack_info),
+    (r'/(.*?)/(HEAD)', text_file),
+    (r'/(.*?)/(objects/info/[^/]*$)', text_file),
+    ]))
+
+if __name__ == '__main__':
+    application.listen(8080)
+    IOLoop.instance().start()
