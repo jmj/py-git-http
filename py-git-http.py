@@ -1,13 +1,24 @@
 #!/usr/bin/env python
 
 import subprocess
-from logging import warning
+import tempfile
+import wsgiref
+from datetime import datetime
+import logging
+log = logging.getLogger(__name__)
 
 from tornado.ioloop import IOLoop
 from tornado.web import Application, RequestHandler
+from tornado.wsgi import WSGIApplication
+from tornado.options import parse_command_line
+
+#AppType = WSGIApplication
+AppType = Application
+
 
 base = '/tmp/repo'
 git = '/usr/local/bin/git'
+#git = '/usr/bin/git'
 pack_ops = {
     'git-upload-pack': 'upload-pack',
     'git-receive-pack': 'receive-pack',
@@ -21,39 +32,41 @@ def mk_pkt_line(line):
 
 class rpc_service(RequestHandler):
     def post(self, repo, op):
-        warning('rpc_service')
+        log.debug('rpc_service')
 
         indata = self.request.body
-        warning(indata)
+
+        self.set_header('Cache-Control', 'no-cache, max-age=0, must-revalidate')
+        self.set_header('Pragma', 'no-cache')
+        self.set_header('Expires', 'Fri, 01 Jan 1980 00:00:00 GMT')
+        self.set_header('Date',
+                datetime.utcnow().strftime('%a, %d %b %G %T GMT'))
 
         self.set_header('Content-Type', 'application/x-%s-result' % (op))
-        self.set_header('Pragma', 'no-cache')
-        self.set_header('Cache-Control', 'no-cache, max-age=0, must-revalidate')
+
+        o_fn, o_name = tempfile.mkstemp(dir='/tmp')
 
         proc = subprocess.Popen(' '.join([git, pack_ops[op], '--stateless-rpc',
             '%s/%s' % (base, repo), ' | /usr/bin/tee /tmp/g.out']),
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True)
         proc.stdin.write(indata)
+        proc.wait()
 
-        warning('Sending data:')
         while True:
             outdata = proc.stdout.read(8192)
             if outdata == '':
-                warning('Done')
                 return
-            warning('---->%s' % (outdata))
             self.write(outdata)
             self.flush()
-#        self.write(bytes('0008NAK\n'))
 
 class get_objects(RequestHandler):
     def get(self):
-        warning('get_objects')
+        log.debug('get_objects')
 
 class get_refs_info(RequestHandler):
     def get(self, repo):
-        warning('get_refs_info: %s'% (repo))
-        warning(self.get_argument('service'))
+        log.debug('get_refs_info')
+
         self.set_header('Content-type', 'application/x-%s-advertisement' % (
             self.get_argument('service')))
 
@@ -63,29 +76,34 @@ class get_refs_info(RequestHandler):
         ret = '%s%s\n' % (ret, subprocess.check_output([git,
             pack_ops[self.get_argument('service')],
             '--stateless-rpc', '--advertise-refs', '%s/%s' % (base, repo)]))
-
-        self.write(ret)
+        self.write(ret.strip())
 
 class get_pack_info(RequestHandler):
     def get(self):
-        warning('get_pack_info')
+        log.debug('get_pack_info')
 
 class text_file(RequestHandler):
     def get(self, repo, path):
-        warning('text_file: %s'% (path))
+        log.debug('text_file: %s'% (path))
+
         self.set_header('Content-type', 'text/plain')
         with open('%s/%s/%s' % (base, repo, path)) as f:
             self.write(f.read())
 
-application = (Application([
+application = AppType([
     (r'/(.*?)/(git-upload-pack|git-receive-pack)', rpc_service),
     (r'/(.*?)/objects/([0-9a-f]{2}/[0-9a-f]{38}$)', get_objects),
     (r'/(.*?)/info/refs', get_refs_info),
     (r'/(.*?)/packs', get_pack_info),
     (r'/(.*?)/(HEAD)', text_file),
     (r'/(.*?)/(objects/info/[^/]*$)', text_file),
-    ]))
+    ], debug=True)
 
 if __name__ == '__main__':
-    application.listen(8080)
-    IOLoop.instance().start()
+    parse_command_line()
+    if isinstance(application, WSGIApplication):
+        server = wsgiref.simple_server.make_server('', 8888, application)
+        server.serve_forever()
+    else:
+        application.listen(8080)
+        IOLoop.instance().start()
