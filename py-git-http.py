@@ -46,9 +46,9 @@ class rpc_service(RequestHandler):
 
         o_fn, o_name = tempfile.mkstemp(dir='/tmp')
 
-        proc = subprocess.Popen(' '.join([git, pack_ops[op], '--stateless-rpc',
-            '%s/%s' % (base, repo), ' | /usr/bin/tee /tmp/g.out']),
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True)
+        proc = subprocess.Popen([git, pack_ops[op], '--stateless-rpc',
+            '%s/%s' % (base, repo)],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         proc.stdin.write(indata)
         proc.wait()
 
