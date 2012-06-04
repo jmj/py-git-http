@@ -88,7 +88,8 @@ class get_refs_info(RequestHandler):
         self.write(ret.strip())
 
 class get_pack_info(RequestHandler):
-    def get(self):
+    @utils.clense_path
+    def get(self, repo):
         log.debug('get_pack_info')
 
 class text_file(RequestHandler):
@@ -104,7 +105,6 @@ application = AppType([
     (r'/(.*?)/(git-upload-pack|git-receive-pack)', rpc_service),
     (r'/(.*?)/(objects/[0-9a-f]{2}/[0-9a-f]{38}$)', get_objects),
     (r'/(.*?)/info/refs', get_refs_info),
-    (r'/(.*?)/packs', get_pack_info),
     (r'/(.*?)/(HEAD)', text_file),
     (r'/(.*?)/(objects/info/[^/]*$)', text_file),
     ], debug=True)
