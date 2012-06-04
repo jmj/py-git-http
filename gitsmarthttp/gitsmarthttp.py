@@ -10,14 +10,16 @@ log = logging.getLogger(__name__)
 from tornado.ioloop import IOLoop
 from tornado.web import Application, RequestHandler
 from tornado.wsgi import WSGIApplication
-from tornado.options import parse_command_line
+from tornado.options import parse_command_line, options, define
+
+import utils
 
 #AppType = WSGIApplication
 AppType = Application
 
 
-base = '/tmp/repo'
-git = '/usr/local/bin/git'
+#base = '/tmp/repo'
+#git = '/usr/local/bin/git'
 #git = '/usr/bin/git'
 pack_ops = {
     'git-upload-pack': 'upload-pack',
@@ -31,6 +33,7 @@ def mk_pkt_line(line):
     return '{:04x}{}'.format(len(line), line)
 
 class rpc_service(RequestHandler):
+    @utils.clense_path
     def post(self, repo, op):
         log.debug('rpc_service')
 
@@ -64,6 +67,7 @@ class get_objects(RequestHandler):
         log.debug('get_objects')
 
 class get_refs_info(RequestHandler):
+    @utils.clense_path
     def get(self, repo):
         log.debug('get_refs_info')
 
@@ -83,6 +87,7 @@ class get_pack_info(RequestHandler):
         log.debug('get_pack_info')
 
 class text_file(RequestHandler):
+    @utils.clense_path
     def get(self, repo, path):
         log.debug('text_file: %s'% (path))
 
@@ -100,7 +105,15 @@ application = AppType([
     ], debug=True)
 
 if __name__ == '__main__':
+    define("base", default='/tmp/repo',
+            help='The base repository dir (default = /tmp/repo)')
+    define('git', default='/usr/bin/git',
+            help='path to git binary (default = /usr/bin/git)')
     parse_command_line()
+
+    git = options.git
+    base = options.base
+
     if isinstance(application, WSGIApplication):
         server = wsgiref.simple_server.make_server('', 8888, application)
         server.serve_forever()
