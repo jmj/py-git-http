@@ -11,8 +11,7 @@ def clense_path(fn):
         ## deref . and .., etc
         repo_path = path.abspath('{}/{}'.format(options.base, repo))
 
-        ## dir name should be the same as base
-        if path.exists(repo_path) and path.dirname(repo_path) == options.base:
+        if path.exists(repo_path) and repo_path.startswith(options.base):
             return fn(self, repo, *args, **kw)
         self.set_status(403)
         return
