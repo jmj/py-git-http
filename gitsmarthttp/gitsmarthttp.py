@@ -63,8 +63,13 @@ class rpc_service(RequestHandler):
             self.flush()
 
 class get_objects(RequestHandler):
-    def get(self):
+    @utils.clense_path
+    def get(self, repo, obj_file):
         log.debug('get_objects')
+
+        self.set_header('Content-type', 'application/x-git-loose-object')
+        with open('{}/{}/{}'.format(base, repo, obj_file)) as f:
+            self.write(f.read())
 
 class get_refs_info(RequestHandler):
     @utils.clense_path
@@ -97,7 +102,7 @@ class text_file(RequestHandler):
 
 application = AppType([
     (r'/(.*?)/(git-upload-pack|git-receive-pack)', rpc_service),
-    (r'/(.*?)/objects/([0-9a-f]{2}/[0-9a-f]{38}$)', get_objects),
+    (r'/(.*?)/(objects/[0-9a-f]{2}/[0-9a-f]{38}$)', get_objects),
     (r'/(.*?)/info/refs', get_refs_info),
     (r'/(.*?)/packs', get_pack_info),
     (r'/(.*?)/(HEAD)', text_file),
