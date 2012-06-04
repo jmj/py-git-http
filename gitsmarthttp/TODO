@@ -1,0 +1,16 @@
+Need to finish fallback to 'dumb' http
+    pack files
+    index files
+
+implement auth deco (another option may be to implent it as a mixin like tornado's builting alternate auth methods)
+    identify all ops needed for ro access
+    implement options for:
+        ro everyone
+        ro most/rw selected
+        rw everyone
+        blocked master (w/exceptions)
+
+come up with some auth module interface (abc?)
+
+config file (using tornado.options.parse_config_file?)
+
