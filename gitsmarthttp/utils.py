@@ -17,5 +17,9 @@ def clense_path(fn):
         return
     return wrapped
 
+def pkt_flush():
+    return '0000'
 
+def mk_pkt_line(line):
+    return '{:04x}{}'.format(len(line), line)
 

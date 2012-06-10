@@ -26,12 +26,6 @@ pack_ops = {
     'git-receive-pack': 'receive-pack',
 }
 
-def pkt_flush():
-    return '0000'
-
-def mk_pkt_line(line):
-    return '{:04x}{}'.format(len(line), line)
-
 class rpc_service(RequestHandler):
     @utils.clense_path
     def post(self, repo, op):
@@ -79,8 +73,8 @@ class get_refs_info(RequestHandler):
         self.set_header('Content-type', 'application/x-%s-advertisement' % (
             self.get_argument('service')))
 
-        ret = mk_pkt_line('# service=%s\n%s' % (
-            self.get_argument('service'), pkt_flush()))
+        ret = utils.mk_pkt_line('# service=%s\n%s' % (
+            self.get_argument('service'), utils.pkt_flush()))
 
         ret = '%s%s\n' % (ret, subprocess.check_output([git,
             pack_ops[self.get_argument('service')],
