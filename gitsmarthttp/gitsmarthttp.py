@@ -3,7 +3,6 @@
 import subprocess
 import tempfile
 import wsgiref
-from datetime import datetime
 import logging
 log = logging.getLogger(__name__)
 
