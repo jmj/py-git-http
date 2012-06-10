@@ -1,4 +1,6 @@
 from os import path
+import datetime
+
 from tornado.options import options
 
 import logging
@@ -23,3 +25,9 @@ def pkt_flush():
 def mk_pkt_line(line):
     return '{:04x}{}'.format(len(line), line)
 
+def hdr_nocache(response):
+        response.set_header('Cache-Control', 'no-cache, max-age=0, must-revalidate')
+        response.set_header('Pragma', 'no-cache')
+        response.set_header('Expires', 'Fri, 01 Jan 1980 00:00:00 GMT')
+        response.set_header('Date',
+                datetime.utcnow().strftime('%a, %d %b %G %T GMT'))

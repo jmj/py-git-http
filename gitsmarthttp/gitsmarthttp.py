@@ -17,10 +17,6 @@ import utils
 #AppType = WSGIApplication
 AppType = Application
 
-
-#base = '/tmp/repo'
-#git = '/usr/local/bin/git'
-#git = '/usr/bin/git'
 pack_ops = {
     'git-upload-pack': 'upload-pack',
     'git-receive-pack': 'receive-pack',
@@ -33,11 +29,7 @@ class rpc_service(RequestHandler):
 
         indata = self.request.body
 
-        self.set_header('Cache-Control', 'no-cache, max-age=0, must-revalidate')
-        self.set_header('Pragma', 'no-cache')
-        self.set_header('Expires', 'Fri, 01 Jan 1980 00:00:00 GMT')
-        self.set_header('Date',
-                datetime.utcnow().strftime('%a, %d %b %G %T GMT'))
+        utils.hdr_nocache(self)
 
         self.set_header('Content-Type', 'application/x-%s-result' % (op))
 
