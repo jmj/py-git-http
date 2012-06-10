@@ -61,15 +61,27 @@ class get_refs_info(RequestHandler):
     def get(self, repo):
         log.debug('get_refs_info')
 
-        self.set_header('Content-type', 'application/x-%s-advertisement' % (
-            self.get_argument('service')))
+        service = self.get_argument('service', default=None)
+        if service is not None:
+            log.debug('looks like smart http')
+            self.set_header('Content-type', 'application/x-%s-advertisement' % (
+                service))
 
-        ret = utils.mk_pkt_line('# service=%s\n%s' % (
-            self.get_argument('service'), utils.pkt_flush()))
+            ret = utils.mk_pkt_line('# service=%s\n%s' % (
+                service, utils.pkt_flush()))
 
-        ret = '%s%s\n' % (ret, subprocess.check_output([git,
-            pack_ops[self.get_argument('service')],
-            '--stateless-rpc', '--advertise-refs', '%s/%s' % (base, repo)]))
+            ret = '%s%s\n' % (ret, subprocess.check_output([git,
+                pack_ops[self.get_argument('service')],
+                '--stateless-rpc', '--advertise-refs', '%s/%s' % (base, repo)]))
+        else:
+            log.debug('looks like dumb http')
+            subprocess.check_call([git, 'update-server-info'],
+                    cwd='{}/{}'.format(base, repo))
+            self.set_header('Content-type', 'text/plain; charset=utf-8')
+            with open('{}/{}/info/refs'.format(base, repo)) as f:
+                ret = ''.join(f.readlines())
+
+        utils.hdr_nocache(self)
         self.write(ret.strip())
 
 class get_pack_info(RequestHandler):
@@ -91,8 +103,8 @@ application = AppType([
     (r'/(.*?)/(objects/[0-9a-f]{2}/[0-9a-f]{38}$)', get_objects),
     (r'/(.*?)/info/refs', get_refs_info),
     (r'/(.*?)/(HEAD)', text_file),
-    (r'/(.*?)/(objects/info/[^/]*$)', text_file),
-    ], debug=True)
+    (r'/(.*?)/(objects/info/[^/]*$)', text_file),],
+    debug=True)
 
 if __name__ == '__main__':
     define("base", default='/tmp/repo',
@@ -110,3 +122,4 @@ if __name__ == '__main__':
     else:
         application.listen(8080)
         IOLoop.instance().start()
+        # foo
