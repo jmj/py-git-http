@@ -1,5 +1,5 @@
 from os import path
-import datetime
+from datetime import datetime
 
 from tornado.options import options
 
