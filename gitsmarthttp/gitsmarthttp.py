@@ -70,9 +70,10 @@ class get_refs_info(RequestHandler):
             ret = utils.mk_pkt_line('# service=%s\n%s' % (
                 service, utils.pkt_flush()))
 
-            ret = '%s%s\n' % (ret, subprocess.check_output([git,
+            ret = '%s%s' % (ret, subprocess.check_output([git,
                 pack_ops[self.get_argument('service')],
                 '--stateless-rpc', '--advertise-refs', '%s/%s' % (base, repo)]))
+            ret = ret.strip()
         else:
             log.debug('looks like dumb http')
             subprocess.check_call([git, 'update-server-info'],
@@ -82,7 +83,7 @@ class get_refs_info(RequestHandler):
                 ret = ''.join(f.readlines())
 
         utils.hdr_nocache(self)
-        self.write(ret.strip())
+        self.write(ret)
 
 class get_pack_info(RequestHandler):
     @utils.clense_path
@@ -103,8 +104,8 @@ application = AppType([
     (r'/(.*?)/(objects/[0-9a-f]{2}/[0-9a-f]{38}$)', get_objects),
     (r'/(.*?)/info/refs', get_refs_info),
     (r'/(.*?)/(HEAD)', text_file),
-    (r'/(.*?)/(objects/info/[^/]*$)', text_file),],
-    debug=True)
+    (r'/(.*?)/(objects/info/[^/]*$)', text_file),
+    ],debug=True)
 
 if __name__ == '__main__':
     define("base", default='/tmp/repo',
