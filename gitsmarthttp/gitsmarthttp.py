@@ -32,8 +32,6 @@ class rpc_service(RequestHandler):
 
         self.set_header('Content-Type', 'application/x-%s-result' % (op))
 
-        o_fn, o_name = tempfile.mkstemp(dir='/tmp')
-
         proc = subprocess.Popen([git, pack_ops[op], '--stateless-rpc',
             '%s/%s' % (base, repo)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE)
