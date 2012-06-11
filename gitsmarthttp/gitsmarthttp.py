@@ -83,11 +83,6 @@ class get_refs_info(RequestHandler):
         utils.hdr_nocache(self)
         self.write(ret)
 
-class get_pack_info(RequestHandler):
-    @utils.clense_path
-    def get(self, repo):
-        log.debug('get_pack_info')
-
 class text_file(RequestHandler):
     @utils.clense_path
     def get(self, repo, path):
