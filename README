@@ -1,0 +1,3 @@
+Note: when using older (dumb) http, the repo will be read-only.  Tornado does not support webdav
+
+As there are ways to hook dev into tornado, this _may_ be supported in the future
