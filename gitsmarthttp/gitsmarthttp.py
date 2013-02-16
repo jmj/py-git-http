@@ -3,6 +3,7 @@
 import subprocess
 import tempfile
 import wsgiref
+from wsgiref.simple_server import make_server
 import logging
 log = logging.getLogger(__name__)
 
@@ -111,7 +112,8 @@ if __name__ == '__main__':
     base = options.base
 
     if isinstance(application, WSGIApplication):
-        server = wsgiref.simple_server.make_server('', 8888, application)
+        #server = wsgiref.simple_server.make_server('', 8888, application)
+        server = make_server('', 8888, application)
         server.serve_forever()
     else:
         application.listen(8080)
