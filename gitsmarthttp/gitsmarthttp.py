@@ -85,6 +85,9 @@ def upload_pack(repo):
         wanted_objs.append(Gitobject.new(r, want[5:]))
         log.debug(wanted_objs)
 
+    response.set_header('Content-type', 'application/x-git-upload-pack-result')
+    hdr_nocache(response)
+
     cnt = 0
     yield mk_pkt_line('NAK\n')
     for line in pack_objects(r, [o.hexsha for o in wanted_objs]):
