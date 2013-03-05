@@ -90,7 +90,7 @@ def upload_pack(repo):
     for line in pack_objects(r, [o.hexsha for o in wanted_objs]):
         log.debug(cnt)
         cnt +=1
-        yield mk_pkt_line(line)
+        yield mk_pkt_line('\x01{0}'.format(line))
 
 
 @app.route('/<foo:path>')
