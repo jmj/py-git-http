@@ -1,121 +1,111 @@
-#!/usr/bin/env python
+#from pudb import set_trace; set_trace()
+from bottle import run, request, response, abort, static_file
+from bottle import Bottle
 
-import subprocess
-import tempfile
-import wsgiref
-from wsgiref.simple_server import make_server
-import logging
-log = logging.getLogger(__name__)
+from git.repo import Repo
+from git.objects import Object as Gitobject
 
-from tornado.ioloop import IOLoop
-from tornado.web import Application, RequestHandler
-from tornado.wsgi import WSGIApplication
-from tornado.options import parse_command_line, options, define
+from utils import clense_path, mk_pkt_line, hdr_nocache, pack_objects
 
-import utils
+import logging as log
+log.basicConfig(level=log.DEBUG)
 
-#AppType = WSGIApplication
-AppType = Application
 
-pack_ops = {
-    'git-upload-pack': 'upload-pack',
-    'git-receive-pack': 'receive-pack',
-}
+app = Bottle()
 
-class rpc_service(RequestHandler):
-    @utils.clense_path
-    def post(self, repo, op):
-        log.debug('rpc_service')
+repo_base = '/tmp/repo'
 
-        indata = self.request.body
+#ul_caps = 'multi_ack thin-pack side-band side-band-64k ofs-delta shallow no-progress include-tag multi_ack_detailed agent=pygit2/{0}'.format(pygit2.__version__)
+ul_caps = 'multi_ack thin-pack side-band side-band-64k ofs-delta shallow no-progress include-tag multi_ack_detailed agent=git/1.8.0'
 
-        utils.hdr_nocache(self)
+## Temp to clean up logging
+@app.route('/favicon.ico')
+def icon():
+    abort(401, 'foo')
 
-        self.set_header('Content-Type', 'application/x-%s-result' % (op))
 
-        proc = subprocess.Popen([git, pack_ops[op], '--stateless-rpc',
-            '%s/%s' % (base, repo)],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        proc.stdin.write(indata)
-        proc.wait()
+# TODO: clense_path needs to check for None
+@clense_path
+@app.get('/<repo>/info/refs')
+def get_refs(repo):
+    log.debug('service={0}'.format(request.query['service']))
 
-        while True:
-            outdata = proc.stdout.read(8192)
-            if outdata == '':
-                return
-            self.write(outdata)
-            self.flush()
+    r = Repo('{0}/{1}'.format(repo_base, repo))
 
-class get_objects(RequestHandler):
-    @utils.clense_path
-    def get(self, repo, obj_file):
-        log.debug('get_objects')
+    ret = [mk_pkt_line('# service={0}\n'.format(request.query['service']))]
+    ret.append('0000')
 
-        self.set_header('Content-type', 'application/x-git-loose-object')
-        with open('{}/{}/{}'.format(base, repo, obj_file)) as f:
-            self.write(f.read())
+    hdr_nocache(response)
+    response.set_header('X-Powered-By', 'Me')
 
-class get_refs_info(RequestHandler):
-    @utils.clense_path
-    def get(self, repo):
-        log.debug('get_refs_info')
+    if request.query['service'] == 'git-upload-pack':
+        response.set_header('Content-Type',
+                'application/x-git-upload-pack-advertisement')
+        ret.append(mk_pkt_line('{0} HEAD{1}\n'.format(
+            r.head.object.hexsha, ul_caps)))
 
-        service = self.get_argument('service', default=None)
-        if service is not None:
-            log.debug('looks like smart http')
-            self.set_header('Content-type', 'application/x-%s-advertisement' % (
-                service))
+    for ref in r.references:
+    #for ref_name in r.listall_references():
+        ret.append(mk_pkt_line('{0} {1}\n'.format(
+            ref.object.hexsha, ref.path)))
 
-            ret = utils.mk_pkt_line('# service=%s\n%s' % (
-                service, utils.pkt_flush()))
 
-            ret = '%s%s' % (ret, subprocess.check_output([git,
-                pack_ops[self.get_argument('service')],
-                '--stateless-rpc', '--advertise-refs', '%s/%s' % (base, repo)]))
-            ret = ret.strip()
-        else:
-            log.debug('looks like dumb http')
-            subprocess.check_call([git, 'update-server-info'],
-                    cwd='{}/{}'.format(base, repo))
-            self.set_header('Content-type', 'text/plain; charset=utf-8')
-            with open('{}/{}/info/refs'.format(base, repo)) as f:
-                ret = ''.join(f.readlines())
+    ret.append('0000')
+    log.debug('----------')
+    log.debug(ret)
+    log.debug('----------')
+    return ''.join(ret)
 
-        utils.hdr_nocache(self)
-        self.write(ret)
+@clense_path
+@app.get('/<repo>/HEAD')
+def get_head(repo):
+    return static_file('HEAD', root='{0}/{1}'.format(repo_base, repo))
 
-class text_file(RequestHandler):
-    @utils.clense_path
-    def get(self, repo, path):
-        log.debug('text_file: %s'% (path))
+@clense_path
+@app.post('/<repo>/git-upload-pack')
+def upload_pack(repo):
 
-        self.set_header('Content-type', 'text/plain')
-        with open('%s/%s/%s' % (base, repo, path)) as f:
-            self.write(f.read())
+    r = Repo('{0}/{1}'.format(repo_base, repo))
 
-application = AppType([
-    (r'/(.*?)/(git-upload-pack|git-receive-pack)', rpc_service),
-    (r'/(.*?)/(objects/[0-9a-f]{2}/[0-9a-f]{38}$)', get_objects),
-    (r'/(.*?)/info/refs', get_refs_info),
-    (r'/(.*?)/(HEAD)', text_file),
-    (r'/(.*?)/(objects/info/[^/]*$)', text_file),
-    ],debug=True)
+    request_body = request.body
+    wanted_objs = list()
+    while True:
+        datalen = request_body.read(4)
+        log.debug('datalen: {0}'.format(datalen))
+        if datalen == '0000':
+            continue
+
+        want = request_body.read(int(datalen, 16)-4)
+        want = want.strip()
+        log.debug('want: {0}'.format(want))
+
+        if want == 'done':
+            break
+
+        wanted_objs.append(Gitobject.new(r, want[5:]))
+        log.debug(wanted_objs)
+
+    cnt = 0
+    yield mk_pkt_line('NAK\n')
+    for line in pack_objects(r, [o.hexsha for o in wanted_objs]):
+        log.debug(cnt)
+        cnt +=1
+        yield mk_pkt_line(line)
+
+
+@app.route('/<foo:path>')
+def index(foo=None):
+    log.debug('requested: {0} {1}'.format(request.method, foo))
+    log.debug('\theaders:')
+    for h,v in request.headers.items():
+        log.debug('\t\t{0}:{1}'.format(h, v))
+    log.debug('\tArgs:')
+    for h,v in request.query.items():
+        log.debug('\t\t{0}:{1}'.format(h, v))
+
+    return 'foo'
+
+
 
 if __name__ == '__main__':
-    define("base", default='/tmp/repo',
-            help='The base repository dir (default = /tmp/repo)')
-    define('git', default='/usr/bin/git',
-            help='path to git binary (default = /usr/bin/git)')
-    parse_command_line()
-
-    git = options.git
-    base = options.base
-
-    if isinstance(application, WSGIApplication):
-        #server = wsgiref.simple_server.make_server('', 8888, application)
-        server = make_server('', 8888, application)
-        server.serve_forever()
-    else:
-        application.listen(8080)
-        IOLoop.instance().start()
-        # foo
+    run(app, host='0.0.0.0', port=9000)
