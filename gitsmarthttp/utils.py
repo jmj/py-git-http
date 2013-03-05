@@ -44,5 +44,5 @@ def pack_objects(repo, objects):
         gitproc.stdin.write('{0}\n'.format(o))
     gitproc.stdin.close()
 
-    yield gitproc.stderr.read()
+    #yield gitproc.stderr.read()
     yield gitproc.stdout.read()
