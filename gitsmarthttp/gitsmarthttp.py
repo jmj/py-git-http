@@ -4,13 +4,8 @@ from gevent import monkey
 monkey.patch_all()
 
 
-from bottle import run, request, response, abort, static_file
+from bottle import run, request, response, static_file
 from bottle import Bottle
-
-
-
-#from git.repo import Repo
-#from git.objects import Object as Gitobject
 
 from utils import clense_path, mk_pkt_line, hdr_nocache, Git
 
@@ -22,13 +17,6 @@ log.basicConfig(level=log.DEBUG)
 app = Bottle()
 
 repo_base = '/tmp/repo'
-
-
-## Temp to clean up logging
-@app.route('/favicon.ico')
-def icon():
-    abort(401, 'foo')
-
 
 # TODO: clense_path needs to check for None
 @clense_path
