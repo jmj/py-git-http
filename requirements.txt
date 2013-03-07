@@ -1,6 +1,8 @@
-GitPython==0.3.2.RC1
 async==0.6.1
 bottle==0.11.6
-gitdb==0.5.4
+gevent==0.13.8
+gevent-subprocess==0.1.1
+greenlet==0.4.0
 smmap==0.8.2
+urwid==1.1.1
 wsgiref==0.1.2
