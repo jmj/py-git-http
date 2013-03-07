@@ -64,13 +64,12 @@ def get_refs(repo):
             if l == '':
                 break
             log.debug(l)
-            yield l
+            yield l.strip()
         except OSError as e:
             if e.errno == errno.EBADF:
                 break
             else:
                 raise
-    yield '0000'
 
 @clense_path
 @app.get('/<repo>/HEAD')
