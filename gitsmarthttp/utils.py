@@ -34,6 +34,27 @@ def hdr_nocache(response):
         response.set_header('Date',
                 datetime.utcnow().strftime('%a, %d %b %G %T GMT'))
 
+class PathCleaner(object):
+    name = 'PathCleaner'
+    api = 2
+
+    def __init__(self, repo_base):
+        self.repo_base = repo_base
+
+    def apply(self, callback, context):
+        conf = context.config.get('PathCleaner') or {}
+        repo_base = conf.get('repo_base', self.repo_base)
+
+        def wrapped(self, repo, *args, **kw):
+            ## deref . and .., etc
+            repo_path = path.abspath('{}/{}'.format(repo_base, repo))
+
+            if path.exists(repo_path) and repo_path.startswith(repo_base):
+                return callback(self, repo, *args, **kw)
+            abort(403, 'Unauthorized')
+            return
+        return wrapped
+
 
 class Git(object):
     def __init__(self, repo, path='/usr/local/bin/git', *opts):
