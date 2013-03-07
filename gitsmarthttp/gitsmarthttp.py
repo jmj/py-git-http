@@ -18,8 +18,6 @@ app = Bottle()
 repo_base = '/tmp/repo'
 app.install(PathCleanerPlugin(repo_base))
 
-# TODO: clense_path needs to check for None
-#@clense_path
 @app.get('/<repo>/info/refs')
 def get_refs(repo):
 
@@ -58,12 +56,10 @@ def get_refs(repo):
             else:
                 raise
 
-#@clense_path
 @app.get('/<repo>/HEAD')
 def get_head(repo):
     return static_file('HEAD', root='{0}/{1}'.format(repo_base, repo))
 
-#@clense_path
 @app.post('/<repo>/<op:re:git-(upload|receive)-pack>')
 def rpc_op(repo, op):
     log.debug('rpc_op: {0}'.format(op))
