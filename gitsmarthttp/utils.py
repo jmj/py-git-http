@@ -10,19 +10,6 @@ log = logging.getLogger(__name__)
 
 repo_base='/tmp/repo'
 
-## Decorator to make sure the repo is valid.
-def clense_path(fn):
-    def wrapped(self, repo, *args, **kw):
-        log.debug('Cleaning path: {}/{}'.format(repo_base, repo))
-        ## deref . and .., etc
-        repo_path = path.abspath('{}/{}'.format(repo_base, repo))
-
-        if path.exists(repo_path) and repo_path.startswith(repo_base):
-            return fn(self, repo, *args, **kw)
-        abort(403, 'Unauthorized')
-        return
-    return wrapped
-
 def mk_pkt_line(line):
     return '{0:04x}{1}'.format(len(line)+4, line)
 
@@ -34,7 +21,7 @@ def hdr_nocache(response):
         response.set_header('Date',
                 datetime.utcnow().strftime('%a, %d %b %G %T GMT'))
 
-class PathCleaner(object):
+class PathCleanerPlugin(object):
     name = 'PathCleaner'
     api = 2
 
@@ -42,17 +29,17 @@ class PathCleaner(object):
         self.repo_base = repo_base
 
     def apply(self, callback, context):
+        log.debug('PathCleaner.apply()')
         conf = context.config.get('PathCleaner') or {}
         repo_base = conf.get('repo_base', self.repo_base)
 
-        def wrapped(self, repo, *args, **kw):
+        def wrapped(repo, *args, **kw):
             ## deref . and .., etc
             repo_path = path.abspath('{}/{}'.format(repo_base, repo))
 
             if path.exists(repo_path) and repo_path.startswith(repo_base):
-                return callback(self, repo, *args, **kw)
+                return callback(repo, *args, **kw)
             abort(403, 'Unauthorized')
-            return
         return wrapped
 
 

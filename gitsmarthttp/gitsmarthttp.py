@@ -7,19 +7,19 @@ monkey.patch_all()
 from bottle import run, request, response, static_file
 from bottle import Bottle
 
-from utils import clense_path, mk_pkt_line, hdr_nocache, Git
+from utils import mk_pkt_line, hdr_nocache, Git, PathCleanerPlugin
 
 import errno
 import logging as log
 log.basicConfig(level=log.DEBUG)
 
-
 app = Bottle()
 
 repo_base = '/tmp/repo'
+app.install(PathCleanerPlugin(repo_base))
 
 # TODO: clense_path needs to check for None
-@clense_path
+#@clense_path
 @app.get('/<repo>/info/refs')
 def get_refs(repo):
 
@@ -51,7 +51,6 @@ def get_refs(repo):
             l = p.stdout.read(8192)
             if l == '':
                 break
-            log.debug(l)
             yield l.strip()
         except OSError as e:
             if e.errno == errno.EBADF:
@@ -59,12 +58,12 @@ def get_refs(repo):
             else:
                 raise
 
-@clense_path
+#@clense_path
 @app.get('/<repo>/HEAD')
 def get_head(repo):
     return static_file('HEAD', root='{0}/{1}'.format(repo_base, repo))
 
-@clense_path
+#@clense_path
 @app.post('/<repo>/<op:re:git-(upload|receive)-pack>')
 def rpc_op(repo, op):
     log.debug('rpc_op: {0}'.format(op))
@@ -91,7 +90,6 @@ def rpc_op(repo, op):
             l = p.stdout.read(8192)
             if l == '':
                 break
-            log.debug(l)
             yield l
         except OSError as e:
             if e.errno == errno.EBADF:
